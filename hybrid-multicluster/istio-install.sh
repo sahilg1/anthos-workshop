@@ -30,72 +30,82 @@ export ISTIO_CONFIG_DIR="$BASE_DIR/hybrid-multicluster/istio"
 # Install Istio on central
 # Change context
 kubectx central
-# Create istio-system namespace
-kubectl create namespace istio-system
-# Tiller service account
-kubectl --context central apply -f ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/helm-service-account.yaml
-# Install tiller
-helm init --service-account tiller --wait
 
-# wait for helm to install in central cluster
-#until timeout 10 helm version; do sleep 10; done
+if command -v istioctl 2>/dev/null; then
+  echo "Istio is already installed on central."
+else
+  echo "Installing Istio on central ..."
+  # Create istio-system namespace
+  kubectl create namespace istio-system
+  # Tiller service account
+  kubectl --context central apply -f ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/helm-service-account.yaml
+  # Install tiller
+  helm init --service-account tiller --wait
 
-# Create a secret with the sample certs for multicluster deployment
-kubectl --context central create secret generic cacerts -n istio-system \
---from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/ca-cert.pem \
---from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/ca-key.pem \
---from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/root-cert.pem \
---from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/cert-chain.pem
+  # wait for helm to install in central cluster
+  #until timeout 10 helm version; do sleep 10; done
 
-# install istio CRDs
-helm install ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/istio-init --name istio-init --namespace istio-system
+  # Create a secret with the sample certs for multicluster deployment
+  kubectl --context central create secret generic cacerts -n istio-system \
+  --from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/ca-cert.pem \
+  --from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/ca-key.pem \
+  --from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/root-cert.pem \
+  --from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/cert-chain.pem
 
-# wait until all 53 CRDs are installed
-until [ $(kubectl get crds | grep 'istio.io\|certmanager.k8s.io' | wc -l) = 53 ]; do echo "Waiting for Istio CRDs to install..." && sleep 3; done
+  # install istio CRDs
+  helm install ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/istio-init --name istio-init --namespace istio-system
 
-# Confirm Istio CRDs ae installed
-echo "Istio CRDs installed" && kubectl get crds | grep 'istio.io\|certmanager.k8s.io' | wc -l
+  # wait until all 53 CRDs are installed
+  until [ $(kubectl get crds | grep 'istio.io\|certmanager.k8s.io' | wc -l) = 53 ]; do echo "Waiting for Istio CRDs to install..." && sleep 3; done
 
-# Create a secret for kiali username: 'admin' and password 'password'
-kubectl --context central apply -f ${ISTIO_CONFIG_DIR}/istio-multicluster/kiali-secret.yaml
+  # Confirm Istio CRDs ae installed
+  echo "Istio CRDs installed" && kubectl get crds | grep 'istio.io\|certmanager.k8s.io' | wc -l
 
-# Install Istio
-helm install ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/istio --name istio --namespace istio-system \
---values ${ISTIO_CONFIG_DIR}/istio-multicluster/values-istio-multicluster-gateways.yaml
+  # Create a secret for kiali username: 'admin' and password 'password'
+  kubectl --context central apply -f ${ISTIO_CONFIG_DIR}/istio-multicluster/kiali-secret.yaml
 
+  # Install Istio
+  helm install ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/istio --name istio --namespace istio-system \
+  --values ${ISTIO_CONFIG_DIR}/istio-multicluster/values-istio-multicluster-gateways.yaml
+fi
 
 # Install Istio on remote cluster
 # Change context
 kubectx remote
-# Create istio-system namespace
-kubectl create namespace istio-system
-# Tiller service account
-kubectl --context remote apply -f ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/helm-service-account.yaml
-# Install tiller
-helm init --service-account tiller --wait
+if command -v istioctl 2>/dev/null; then
+  echo "Istio is already installed on remote"
+else
+  echo "Installing Istio on remote"
+  # Create istio-system namespace
+  kubectl create namespace istio-system
+  # Tiller service account
+  kubectl --context remote apply -f ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/helm-service-account.yaml
+  # Install tiller
+  helm init --service-account tiller --wait
 
-# wait for helm to install in central cluster
-#until timeout 10 helm version; do sleep 10; done
+  # wait for helm to install in central cluster
+  #until timeout 10 helm version; do sleep 10; done
 
-# Create a secret with the sample certs for multicluster deployment
-kubectl --context remote create secret generic cacerts -n istio-system \
---from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/ca-cert.pem \
---from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/ca-key.pem \
---from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/root-cert.pem \
---from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/cert-chain.pem
+  # Create a secret with the sample certs for multicluster deployment
+  kubectl --context remote create secret generic cacerts -n istio-system \
+  --from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/ca-cert.pem \
+  --from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/ca-key.pem \
+  --from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/root-cert.pem \
+  --from-file=${WORK_DIR}/istio-${ISTIO_VERSION}/samples/certs/cert-chain.pem
 
-# install istio CRDs
-helm install ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/istio-init --name istio-init --namespace istio-system
+  # install istio CRDs
+  helm install ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/istio-init --name istio-init --namespace istio-system
 
-# wait until all 53 CRDs are installed
-until [ $(kubectl get crds | grep 'istio.io\|certmanager.k8s.io' | wc -l) = 53 ]; do echo "Waiting for Istio CRDs to install..." && sleep 3; done
+  # wait until all 53 CRDs are installed
+  until [ $(kubectl get crds | grep 'istio.io\|certmanager.k8s.io' | wc -l) = 53 ]; do echo "Waiting for Istio CRDs to install..." && sleep 3; done
 
-# Confirm Istio CRDs ae installed
-echo "Istio CRDs installed" && kubectl get crds | grep 'istio.io\|certmanager.k8s.io' | wc -l
+  # Confirm Istio CRDs ae installed
+  echo "Istio CRDs installed" && kubectl get crds | grep 'istio.io\|certmanager.k8s.io' | wc -l
 
-# Create a secret for kiali username: 'admin' and password 'password'
-kubectl --context remote apply -f ${ISTIO_CONFIG_DIR}/istio-multicluster/kiali-secret.yaml
+  # Create a secret for kiali username: 'admin' and password 'password'
+  kubectl --context remote apply -f ${ISTIO_CONFIG_DIR}/istio-multicluster/kiali-secret.yaml
 
-# Install Istio
-helm install ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/istio --name istio --namespace istio-system \
---values ${ISTIO_CONFIG_DIR}/istio-multicluster/values-istio-multicluster-gateways.yaml
+  # Install Istio
+  helm install ${WORK_DIR}/istio-${ISTIO_VERSION}/install/kubernetes/helm/istio --name istio --namespace istio-system \
+  --values ${ISTIO_CONFIG_DIR}/istio-multicluster/values-istio-multicluster-gateways.yaml
+fi
